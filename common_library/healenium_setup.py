@@ -5,55 +5,70 @@ import time
 
 import requests
 
+
 def healenium_setup():
+    """
+    This function ensures following
+        1. Check Healenium Server is up or not. If not, update os.environ["HEALENIUM_FLAG"] to "NO"
+        2. Check Selenium Server is up or not. If not, follow below steps.
+            2.1 Copy files if it does not exist
+            2.2 Start Selenium Server
+            2.3 Check again Selenium Server is up or not. If not, update os.environ["HEALENIUM_FLAG"] to "NO"
+        3. Check Healenium Proxy is up or not. If not, follow below steps.
+            3.1 Copy files if it does not exist.
+            3.2 Start Healenium
+            3.3 Check again if Healenium Proxy is up or not. If not, update os.environ["HEALENIUM_FLAG"] to "NO"
+
+    Controlled using os.environ["HEALENIUM_FLAG"] environment variable to YES or NO
+
+    Pre-req:
+        Shared Folder with following Healenium files in it.
+
+    No Args and Returns:
+    """
+    # Define variables
     shared_path = "<Enter Here Shared File Path>"
+    local_path = "C:/Healenium"
+    healenium_server_url = "http://<SERVER_ID>:7878/healenium/report/"
+    selenium_server_url = "http://localhost:4444/status"
+    healenium_proxy_url = "http://localhost:8085/"
+    # Start of Local Machine / VM setup Steps
     # Check Healenium server is up or not
-    if api_get_request("http://<SERVER_ID>:7878/healenium/report/"):
+    if api_get_request(healenium_server_url):
         # Check Selenium Server is up or not
-        if not api_get_request("http://localhost:4444/status"):
+        if not api_get_request(selenium_server_url):
             copy_file(
                 shared_path + "/selenium-server-4.25.0.jar",
-                "C:/Healenium/selenium-server-4.25.0.jar")
+                local_path + "/selenium-server-4.25.0.jar")
             copy_file(
                 shared_path + "/StartSeleniumServer.bat",
-                "C:/Healenium/StartSeleniumServer.bat")
+                local_path + "/StartSeleniumServer.bat")
             print("Starting Selenium server...")
-            execute_batch_file("C:/Healenium/StartSeleniumServer.bat")
-            if not api_get_request("http://localhost:4444/status"):
+            execute_batch_file(local_path + "/StartSeleniumServer.bat")
+            # Check again Selenium Server is started or not. If not, raise exception.
+            if not api_get_request(selenium_server_url):
                 os.environ["HEALENIUM_FLAG"] = "NO"
                 raise Exception("Selenium Server is not up and running")
         # Check Healenium proxy is up or not
-        if not api_get_request("http://localhost:8085/"):
+        if not api_get_request(healenium_proxy_url):
             kill_process("bash.exe")
             # parent_path = os.path.abspath(os.path.dirname("./"))
             parent_path = ""
             # healenium_path = os.path.abspath(os.path.dirname("./healenium/shell-installation/selenium-grid/"))
-            healenium_path = os.path.abspath(os.path.dirname("C:/Healenium/"))
-            copy_file(
-                shared_path + "/stop_healenium.sh",
-                "C:/Healenium/stop_healenium.sh")
-            copy_file(
-                shared_path + "/download_services.sh",
-                "C:/Healenium/download_services.sh")
-            copy_file(
-                shared_path + "/start_healenium.sh",
-                "C:/Healenium/start_healenium.sh")
-            copy_file(
-                shared_path + "/StopHealenium.sh",
-                "C:/Healenium/StopHealenium.sh")
-            copy_file(
-                shared_path + "/DownloadServices.sh",
-                "C:/Healenium/DownloadServices.sh")
-            copy_file(
-                shared_path + "/StartHealenium.sh",
-                "C:/Healenium/StartHealenium.sh")
+            healenium_path = os.path.abspath(os.path.dirname(local_path))
+            copy_file(shared_path + "/stop_healenium.sh", local_path + "/stop_healenium.sh")
+            copy_file(shared_path + "/download_services.sh", local_path + "/download_services.sh")
+            copy_file(shared_path + "/start_healenium.sh", local_path + "/start_healenium.sh")
+            copy_file(shared_path + "/StopHealenium.sh", local_path + "/StopHealenium.sh")
+            copy_file(shared_path + "/DownloadServices.sh", local_path + "/DownloadServices.sh")
+            copy_file(shared_path + "/StartHealenium.sh", local_path + "/StartHealenium.sh")
             print(parent_path)
             print(healenium_path)
             execute_shell_file(os.path.join(healenium_path, "StopHealenium.sh"))
             execute_shell_file(os.path.join(healenium_path, "DownloadServices.sh"))
             print("Starting Healenium-proxy...")
             execute_shell_file(os.path.join(healenium_path, "StartHealenium.sh"))
-            if not api_get_request("http://localhost:8085/"):
+            if not api_get_request(healenium_proxy_url):
                 os.environ["HEALENIUM_FLAG"] = "NO"
                 # raise Exception("Healenium-proxy is not up and running")
                 print("Healenium-proxy is not up and running")
@@ -61,6 +76,7 @@ def healenium_setup():
         os.environ["HEALENIUM_FLAG"] = "NO"
         # raise Exception("Healenium backend server is not up and running")
         print("Healenium backend server is not up and running")
+
 
 def copy_file(src_file, dst_file):
     # check file exists
@@ -74,7 +90,9 @@ def copy_file(src_file, dst_file):
     else:
         print(f"The file {dst_file} already exists. Skipping copy operation.")
 
+
 def api_get_request(url, api_body="", api_response=""):
+    # run API
     try:
         response = requests.get(url, timeout=5)
         if response.status_code == 200:
@@ -84,6 +102,7 @@ def api_get_request(url, api_body="", api_response=""):
         print(f"API Exception Occurred {e}")
         return False
     return False
+
 
 def execute_batch_file(path):
     try:
@@ -98,6 +117,7 @@ def execute_batch_file(path):
         print("Error: path not found")
         return False
 
+
 def execute_shell_file(path):
     try:
         # flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
@@ -111,7 +131,8 @@ def execute_shell_file(path):
         print("Error: 'java' command not found. Ensure Java is installed and in your PATH.")
         return False
 
-def kill_process(process_name = "bash.exe"):
+
+def kill_process(process_name="bash.exe"):
     command = f"taskkill /f /im {process_name}"
     try:
         result = os.system(command)
